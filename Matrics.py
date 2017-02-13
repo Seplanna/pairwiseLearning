@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
 def DCG(truth):
     n = len(truth)
@@ -29,6 +30,12 @@ def N_correct_pairs(truth):
     n_pairs += 1e-10
     return float(correct_pairs)/ n_pairs
 
+def Precision(truth, n_points):
+    if (len(truth) < n_points):
+        return 0
+    else:
+        return sum(truth[:n_points]) / float(n_points)
+
 def receive_answer(user, item, min_rating, max_rating, item_bias):
     u_answers = np.rint(np.dot(item, user) + item_bias)
     if (u_answers < min_rating): u_answers = min_rating
@@ -37,6 +44,14 @@ def receive_answer(user, item, min_rating, max_rating, item_bias):
 
 def BestItem(items, user, used_items, items_bias, threshold = 1.):
     #print(items.shape, user.shape)
+    items_bias_ = np.array(items_bias)
+    items_bias_[items_bias > threshold] = -1000
+    items_bias_[items_bias < -threshold] = -1000
+    items_bias_[used_items] = -1000
+     
+    preferences = np.dot(items, user) + items_bias_
+    return np.argmax(preferences)
+
     best_item = 0
     preference = -1000
     for i in range(len(items)):
@@ -82,28 +97,36 @@ def UserEstimation(questions_items, items, items_bias, user, n_q):
     questions = (items[questions_items1[0]] - items[questions_items1[1]])[:n_q]
     bias = (items_bias[questions_items1[0]] - items_bias[questions_items1[1]])[:n_q]
     answers = np.rint(np.dot(questions, user) + bias)
-    #print(answers)
-    answers[answers > 1] = 1.
-    answers[answers < -1] = -1.
+    answers[answers > 2] = 2.
+    answers[answers < -2] = -2.
     answers -= bias
+    #if (n_q == 30):
+    #    print(np.trace(np.linalg.inv(np.dot(questions.T, questions) +
+    #                                 0.001 * np.eye(questions.shape[1]))))
+
     inv_questions = np.linalg.inv(np.dot(questions.T, questions) + 0.001 * np.eye(questions.shape[1]))
     return np.dot(inv_questions,
                         np.dot(answers, questions))
 
-def Test(questions_items, n_q, items, items_bias, user, ratings, all_items, all_items_bias):
+def Test(questions_items, n_q, items, items_bias, user, user_estim, ratings, all_items, all_items_bias):
     #print(questions_items.shape)
-    user_estim = UserEstimation(questions_items, all_items, all_items_bias, user, n_q)
+    if(n_q==0):
+        user_estim = user
+    if(n_q > 1):
+        #user_estim = user
+        user_estim = UserEstimation(questions_items, all_items, all_items_bias, user, n_q-1)
     # test all
     my_recommendation_list, truth = GetRecommendetList(items, user_estim, items_bias, user)
     a = ratings[my_recommendation_list]
     #a = a[:10] > 0
-    dif = user_estim - user
+    dif = 1 - abs(np.dot(user, user_estim) / math.sqrt(np.dot(user, user) * np.dot(user_estim, user_estim)))
     dist = np.dot(dif, dif.T)
     truth = ratings[my_recommendation_list]
     #print(truth)
-    NDCG_ = NDCG(truth + 1)
+    NDCG_ = NDCG((truth + 1) / 2.)
+    precision10 = Precision((truth + 1) / 2., 10)
     correct_pairs = N_correct_pairs(truth)
-    return dist, NDCG_, correct_pairs
+    return dist, NDCG_, correct_pairs, precision10
     #print(NDCG_)
     #return NDCG_ ,0 , 0
 

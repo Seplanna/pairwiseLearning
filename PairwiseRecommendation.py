@@ -5,7 +5,19 @@ import random
 from dataUtils import *
 from Matrics import *
 import sys
-from sklearn.decomposition import PCA
+#from sklearn.decomposition import PCA
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--i', type = int)
+parser.add_argument('--u', type = int)
+parser.add_argument('--f', type = int)
+FLAGS, unparsed = parser.parse_known_args()
+
+items_names_file = "../../DATA/ml-20m/movies.csv"
+data_dir = "../../GeneratedData1/data" + str(FLAGS.f)
+#data_dir = "../../GeneratedData/data1"
+
 
 class Vector(object):
     def __init___(self):
@@ -63,7 +75,7 @@ def GetDiametrOfSetEasyApproximation(points, n_steps = 2):
     return result, diametr
 
 def GetOrtogonalBasis(oldBasis, old_basis_norm, new_v):
-    new_el_in_basis = new_v
+    new_el_in_basis = new_v.copy()
     for i in range(len(oldBasis)):
         b = oldBasis[i]
         b_norm = old_basis_norm[i]
@@ -86,9 +98,12 @@ def GetOrtogonalComponent(vectors, new_element_in_bas, new_element_norm):
             max_norm = v.parallel_norm
     return (min_norm, max_norm)
 
-def GetSetOfPoints(vectors, min_norm, max_norm, items_bias):
+def GetSetOfPoints(vectors, min_norm, max_norm, items_bias, threshold_):
     result = []
     threshold = min_norm + (max_norm - min_norm) / math.sqrt(len(vectors))
+    if (threshold < threshold_):
+        threshold = threshold_
+    #print(threshold, min_norm, max_norm)
     for i in range(len(vectors)):
         parallel_norm = vectors[i].parallel_norm
         if (parallel_norm < threshold and abs(items_bias[i]) < 0.2):
@@ -112,17 +127,18 @@ def GetSet(pool_of_points, items_by_basis):
         result.append(items_by_basis[i])
     return result
 
-def FirstAlgorithm(n_iterations, n_random_steps, items, item_bias, data_dir):
-    items_names = GetItemsNames("../dataset/ml-1m/movies_mine.dat")
+def FirstAlgorithm(n_iterations, n_random_steps, items_original, item_bias, data_dir, threshold = 0.):
+    #items_names = GetItemsNames(items_names_file)
     items_test = np.genfromtxt(data_dir + "/test_items.txt")
     comparative_items = open(data_dir + "/questions_name", 'w')
     print("End")
-    print(items[0][0])
+    #print(items[0][0])
+    items = items_original.copy()
     items1 = items.copy()
     items_by_basis = []
     for i in range(len(items)):
         el = Vector()
-        el.ortogonal = items[i]
+        el.ortogonal = items[i].copy()
         el.ortogonal_norm = np.dot(items[i], items[i].T)
         el.parallel = np.empty(0)
         el.parallel_norm = 0
@@ -154,24 +170,29 @@ def FirstAlgorithm(n_iterations, n_random_steps, items, item_bias, data_dir):
         try:
 
             new_vector = items1[item1] - items1[item2]
-            if (i == 0):
-                print(item1, items1[0][0])
-                print(items1[item1][0])
+            #if (i == 0):
+            #    print(item1, items1[0][0])
+            #    print(items1[item1][0])
             #print(np.dot(new_vector, new_vector.T))
         except:
             print("EXCEPT")
             print(i)
             print(len(items), len(pool_of_points))
+
         questions.append(new_vector)
         question_item.append([item1, item2])
         GetOrtogonalBasis(basis, basis_norm, new_vector)
         min_norm, max_norm = GetOrtogonalComponent(items_by_basis, basis[-1], basis_norm[-1])
-        pool_of_points = GetSetOfPoints(items_by_basis, min_norm, max_norm, item_bias)
+        pool_of_points = GetSetOfPoints(items_by_basis, min_norm, max_norm, item_bias, threshold)
         if (len(pool_of_points) < 300):
-            pool_of_points = GetSetOfPoints(items_by_basis, min_norm, 1000000, item_bias)
-    np.savetxt(data_dir + "/questions", np.array(questions))
+            pool_of_points = GetSetOfPoints(items_by_basis, min_norm, 1000000, item_bias, 10)
+
+    questions = np.array(questions)
+    my_A = np.dot(questions.T, questions)
+    res = np.trace(np.linalg.inv(my_A + 0.001 * np.eye(my_A.shape[0])))
+    np.savetxt(data_dir + "/questions", questions)
     np.savetxt( data_dir + "/questions_items", np.array(question_item))
-    print(question_item)
+    return res
 
 def GetRandomQuestion(items, n):
     array = np.arange(len(items))
@@ -179,11 +200,13 @@ def GetRandomQuestion(items, n):
     questions = []
     questions_items = array[:2*n]
     questions_items = questions_items.reshape([n, 2])
-    np.savetxt("data/quest_item_random", questions_items)
+    np.savetxt(data_dir + "/quest_item_random", questions_items)
     for i in range(n):
         questions.append(items[array[i]] - items[array[i + n]])
         #questions.append(items[array[i]])
-
+    questions = np.array(questions)
+    my_A = np.dot(questions.T , questions)
+    print(np.trace(np.linalg.inv(my_A + 0.001 * np.eye(my_A.shape[0]))))
     return np.array(questions)
 
 def Test1(questions):
@@ -192,7 +215,7 @@ def Test1(questions):
     my_NDCG = 0
     inv_questions = inv(np.dot(questions.T, questions) + 1e-8 * np.eye(questions.shape[1]))
     user_n = 0
-    ratings = np.genfromtxt("data/tes_ratings.txt")
+    ratings = np.genfromtxt(data_dir + "/tes_ratings.txt")
     for user in user_vecs:
         answers = np.rint(np.dot(questions, user))
         answers[answers > 1] = 1.
@@ -216,7 +239,7 @@ def Test1(questions):
     return my_NDCG / len(user_vecs)
 
 def RunTest(n_iter = 20):
-    my = Test1(np.genfromtxt("data/questions"))
+    my = Test1(np.genfromtxt(data_dir + "/questions"))
     print("MY ", my, " MY")
     #yahoo = Test(np.genfromtxt("data/questions_yahoo"))
     r = 0.
@@ -274,7 +297,6 @@ def GetBestPair(items, A, used_items):
     new_A = np.linalg.inv(np.linalg.inv(A))
     res = np.trace(new_A)
     res_items = [0, 0]
-    print(res)
     for i in range(0,items.shape[0]):
         for j in range(items.shape[0]):
             v = items[i] - items[j]
@@ -359,30 +381,42 @@ def GetProperAlgorithm(items, n_q):
         questions.append(res_item)
     return np.array(questions)
 
-def main(n_random = 10, n_iter = 20):
-    data_dir = "data9"
+def main(n_random = 5, n_iter = FLAGS.i):
     item_vecs, item_bias, user_vecs, user_bias, global_bias, user_vecs_train, user_bias_train = GetData(data_dir)
+    popular_items = np.genfromtxt(data_dir + "/train_ratings.txt_").astype(int)
     #pca = PCA(n_components=100)
     #items = pca.fit_transform(item_vecs)
+    #GetRandomQuestion(item_vecs, 40)
+    res = 1e+10
+    THRESHOLD_ = 1.
+    """for i in range(20):
+        THRESHLOD = 0.1 * i + 3.
+        print(THRESHLOD)
+        res_ = FirstAlgorithm(n_iter, n_random, item_vecs, item_bias, data_dir, THRESHLOD)
+        print(res_)
+        if (res_ < res):
+            THRESHOLD_ = THRESHLOD
+            res = res_
+    print(THRESHOLD_, res)
+    THRESHLOD = THRESHOLD_"""
+    print(FirstAlgorithm(n_iter, n_random, item_vecs[popular_items[:200]], item_bias[popular_items[:200]], data_dir, 10.))
 
-    #GetRandomQuestion(item_vecs, 20)
-    FirstAlgorithm(40, n_random, item_vecs, item_bias, data_dir)
-    items1 = np.genfromtxt("data1/questions_items")
-    items1 = items1.reshape([2 * items1.shape[0],])
-    items = np.unique(items1).astype(int)
-    q = np.genfromtxt("data/questions")
-    item_vecs, item_bias, user_vecs, user_bias, global_bias, user_vecs_train, user_bias_train = GetData("data")
-
-
-    #res = BackGwardGreedy(item_vecs[items], n_iter)
-    #res = np.array(res)
-    """res = GetProperAlgorithm(item_vecs[items], n_iter)
+    """items = np.genfromtxt(data_dir + "/questions_items")
+    items = items.astype(int)
+    items = items.reshape((items.shape[0]*2, ))
+    print(items)
+    res = GetProperAlgorithm(item_vecs[items], n_iter)
     res1 = res.T
+    my_quetions = item_vecs[items[res1[0]]] - item_vecs[items[res1[1]]]
+    my_A = np.dot(my_quetions.T, my_quetions)
+    print(np.trace(np.linalg.inv(my_A + 0.001 * np.eye(my_A.shape[0]))))
+
+
     print(res.shape)
     items = items.astype(int)
-    np.savetxt("data/questions1", item_vecs[items[res1[0]]] - item_vecs[items[res1[1]]])
+    np.savetxt(data_dir + "/questions1", item_vecs[items[res1[0]]] - item_vecs[items[res1[1]]])
     questions = [[items[res[i][0]], items[res[i][1]]] for i in range(n_iter)]
-    np.savetxt("data/questions_items", np.array(questions))
+    np.savetxt(data_dir + "/questions_items", np.array(questions))"""
         #q = np.genfromtxt("data/questions")
         #print (q.shape, np.max(q[-10:]))
         #Test(q)"""
@@ -393,6 +427,8 @@ def main(n_random = 10, n_iter = 20):
     print (q.shape, np.max(q[-10:]))
     Test(q)"""
 #main()
+#if __name__ == "main":
+#    main()
 #for i in range(10):
 #    print(i)
 #    #main(2)

@@ -1,8 +1,8 @@
 from random import gauss
 import numpy as np
 import math
-import scipy.stats as stats
-from sklearn.cluster import KMeans
+#import scipy.stats as stats
+#from sklearn.cluster import KMeans
 
 
 def SUCSESS():
@@ -39,8 +39,8 @@ def GetReward(distance_to_users, users, users_bias, item, item_bias, global_bias
     return result / float(n_users)
 
 def GetData(datadir):
-    item_vecs = np.genfromtxt(datadir + "/items.txt")
-    item_bias = np.genfromtxt(datadir + "/items_bias.txt")
+    item_vecs = np.genfromtxt(datadir + "/items1.txt")
+    item_bias = np.genfromtxt(datadir + "/items_bias1.txt")
     user_vecs_test = np.genfromtxt(datadir + "/users.txt")
     user_vecs_train = np.genfromtxt(datadir + "/users_train.txt")
     user_bias_train = np.genfromtxt(datadir + "/user_bias_train.txt")
@@ -121,8 +121,8 @@ def GetItemsNames(file):
     with open(file) as f:
         for line in f:
             try:
-                line = line.split('::')
-                res[int(line[0])] = [line[1], line[-2]]
+                line = line.split(',')
+                res[int(line[0])] = [line[1], line[-1]]
             except:
                 continue
     return res

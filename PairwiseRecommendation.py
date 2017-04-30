@@ -12,11 +12,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--i', type = int)
 parser.add_argument('--u', type = int)
 parser.add_argument('--f', type = int)
+parser.add_argument('--m', type = int)
 FLAGS, unparsed = parser.parse_known_args()
 
-items_names_file = "../../DATA/ml-20m/movies.csv"
-data_dir = "../../GeneratedData1/data" + str(FLAGS.f)
-#data_dir = "../../GeneratedData/data1"
+#items_names_file = "../../DATA/ml-20m/movies.csv"
+#data_dir = "../GeneratedDataAmazone/data" + str(FLAGS.f)
+data_dir = "../GeneratedData/data1"
 
 
 class Vector(object):
@@ -161,6 +162,7 @@ def FirstAlgorithm(n_iterations, n_random_steps, items_original, item_bias, data
             if (diametr < diametr_):
                 diametr = diametr_
                 question = question1
+        print(len(pool_of_points))
         item1 = pool_of_points[question.x]
         item2 = pool_of_points[question.y]
         #if (items_test[question.x]  + 1 in items_names and items_test[item2]  + 1 in items_names):
@@ -186,13 +188,15 @@ def FirstAlgorithm(n_iterations, n_random_steps, items_original, item_bias, data
         pool_of_points = GetSetOfPoints(items_by_basis, min_norm, max_norm, item_bias, threshold)
         if (len(pool_of_points) < 300):
             pool_of_points = GetSetOfPoints(items_by_basis, min_norm, 1000000, item_bias, 10)
-
+        if (len(pool_of_points) < 300):
+            pool_of_points = GetSetOfPoints(items_by_basis, min_norm, 1000000, item_bias / 1000, 10)
     questions = np.array(questions)
     my_A = np.dot(questions.T, questions)
     res = np.trace(np.linalg.inv(my_A + 0.001 * np.eye(my_A.shape[0])))
-    np.savetxt(data_dir + "/questions", questions)
-    np.savetxt( data_dir + "/questions_items", np.array(question_item))
-    return res
+    print(res)
+    return np.array(question_item)
+    #np.savetxt( data_dir + "/questions_items", np.array(question_item))
+    #return res
 
 def GetRandomQuestion(items, n):
     array = np.arange(len(items))
@@ -381,25 +385,36 @@ def GetProperAlgorithm(items, n_q):
         questions.append(res_item)
     return np.array(questions)
 
-def main(n_random = 5, n_iter = FLAGS.i):
+def main(n_random = 5, n_iter = FLAGS.i, mode = FLAGS.m):
     item_vecs, item_bias, user_vecs, user_bias, global_bias, user_vecs_train, user_bias_train = GetData(data_dir)
     popular_items = np.genfromtxt(data_dir + "/train_ratings.txt_").astype(int)
+    ratings = np.genfromtxt(data_dir + "/tes_ratings1.txt")
     #pca = PCA(n_components=100)
     #items = pca.fit_transform(item_vecs)
     #GetRandomQuestion(item_vecs, 40)
     res = 1e+10
     THRESHOLD_ = 1.
-    """for i in range(20):
-        THRESHLOD = 0.1 * i + 3.
-        print(THRESHLOD)
-        res_ = FirstAlgorithm(n_iter, n_random, item_vecs, item_bias, data_dir, THRESHLOD)
-        print(res_)
-        if (res_ < res):
-            THRESHOLD_ = THRESHLOD
-            res = res_
-    print(THRESHOLD_, res)
-    THRESHLOD = THRESHOLD_"""
-    print(FirstAlgorithm(n_iter, n_random, item_vecs[popular_items[:200]], item_bias[popular_items[:200]], data_dir, 10.))
+    questions = []
+    if (mode == 0):
+    	q = FirstAlgorithm(n_iter, n_random, item_vecs[popular_items], item_bias[popular_items], data_dir, 10.)
+        np.savetxt( data_dir + "/questions_items", np.array(q))
+    if (mode == 1):
+        for u in range(ratings.shape[0]):
+            questions.append([0 for i in range(2 * n_iter)])
+            u_r = ratings[u]
+            u_r = u_r[popular_items]
+            u_r = np.array(u_r.nonzero()[0])
+            if (len(u_r) < 20):
+               print(len(u_r))
+               continue
+            q = FirstAlgorithm(n_iter, n_random, item_vecs[popular_items[u_r]], item_bias[popular_items[u_r]], data_dir, 10.)
+            for i in range(q.shape[0]):
+                questions[-1][2*i] = u_r[q[i][0]]
+                questions[-1][2*i + 1] = u_r[q[i][1]]
+        np.savetxt( data_dir + "/questions_items_user_specific", np.array(questions))
+    if (mode == 2):
+        GetRandomQuestion(item_vecs, n_iter)
+        
 
     """items = np.genfromtxt(data_dir + "/questions_items")
     items = items.astype(int)
@@ -426,7 +441,7 @@ def main(n_random = 5, n_iter = FLAGS.i):
     q = np.genfromtxt("data/questions")
     print (q.shape, np.max(q[-10:]))
     Test(q)"""
-#main()
+main()
 #if __name__ == "main":
 #    main()
 #for i in range(10):

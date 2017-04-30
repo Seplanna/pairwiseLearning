@@ -1,6 +1,7 @@
 import math
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+from scipy import spatial
 
 def DCG(truth):
     n = len(truth)
@@ -42,6 +43,20 @@ def receive_answer(user, item, min_rating, max_rating, item_bias):
     if (u_answers > max_rating): u_answers = max_rating
     return u_answers
 
+def trueAnswer(ratings, item1, item2):
+    if (ratings[item1] > ratings[item2]):
+        return 1
+    if (ratings[item1] < ratings[item2]):
+        return -1
+    return 0
+
+def UpdateUser(user_estim, question, bias, answer, learning_rate=0.1):
+    prediction = np.dot(user_estim, question) + bias
+    e = (answer - prediction)
+    user_estim += learning_rate * (e * question - \
+                                     0.001 * user_estim)
+
+    return user_estim
 def BestItem(items, user, used_items, items_bias, threshold = 1.):
     #print(items.shape, user.shape)
     items_bias_ = np.array(items_bias)
@@ -71,8 +86,8 @@ def GetRecommendetList(items, user_estim, items_bias, user):
     item_list = np.argsort(-truth)
     real_truth = np.dot(user, items.T) + items_bias
     real_truth = np.rint(real_truth)
-    real_truth[real_truth > 1] = 1.
-    real_truth[real_truth < -1]  = -1.
+    real_truth[real_truth > 2] = 2.
+    real_truth[real_truth < -2]  = -2.
     return item_list, real_truth[item_list]
 
 def GetSERP(ratings):
@@ -92,35 +107,45 @@ def GetSERP(ratings):
     res = np.append(ones, zeros)
     return res
 
-def UserEstimation(questions_items, items, items_bias, user, n_q):
+def UserEstimation(questions_items, items, items_bias, user, user_estim, n_q, learning_rate, ratings, mode):
     questions_items1 = questions_items.T
     questions = (items[questions_items1[0]] - items[questions_items1[1]])[:n_q]
     bias = (items_bias[questions_items1[0]] - items_bias[questions_items1[1]])[:n_q]
-    answers = np.rint(np.dot(questions, user) + bias)
-    answers[answers > 2] = 2.
-    answers[answers < -2] = -2.
-    answers -= bias
-    #if (n_q == 30):
-    #    print(np.trace(np.linalg.inv(np.dot(questions.T, questions) +
-    #                                 0.001 * np.eye(questions.shape[1]))))
+    
+    answers = np.dot(questions, user)
+    
+    answers += bias
+    answers = np.rint(answers)
+    
 
-    inv_questions = np.linalg.inv(np.dot(questions.T, questions) + 0.001 * np.eye(questions.shape[1]))
-    return np.dot(inv_questions,
-                        np.dot(answers, questions))
+    user_estim1 = user_estim.copy()
+    for a in range(len(questions)):
+        answer = answers[a]
+        if (mode == 1):
+            answer = trueAnswer(ratings, questions_items[a][0], questions_items[a][1])
+        user_estim1 = UpdateUser(user_estim1, questions[a], bias[a], answer, learning_rate)
+    #answers[answers > 2] = 2.
+    #answers[answers < -2] = -2.
+    #answers -= bias
+   
+    #inv_questions = np.linalg.inv(np.dot(questions.T, questions) + 0.0000000000001 * np.eye(questions.shape[1]))
+    #return np.dot(inv_questions,
+    #                    np.dot(answers, questions))
+    #return np.dot(np.linalg.pinv(questions, 1e-3), answers)
+    return user_estim1
 
-def Test(questions_items, n_q, items, items_bias, user, user_estim, ratings, all_items, all_items_bias):
-    #print(questions_items.shape)
+def Test(questions_items, n_q, items, items_bias, user, user_estim, ratings, all_items, all_items_bias, train_ratings, learning_rate=0.1, mode = 0):
     if(n_q==0):
         user_estim = user
     if(n_q > 1):
-        #user_estim = user
-        user_estim = UserEstimation(questions_items, all_items, all_items_bias, user, n_q-1)
+        user_estim = UserEstimation(questions_items, all_items, all_items_bias, user, user_estim, n_q-1, learning_rate, train_ratings, mode)
     # test all
     my_recommendation_list, truth = GetRecommendetList(items, user_estim, items_bias, user)
     a = ratings[my_recommendation_list]
     #a = a[:10] > 0
-    dif = 1 - abs(np.dot(user, user_estim) / math.sqrt(np.dot(user, user) * np.dot(user_estim, user_estim)))
-    dist = np.dot(dif, dif.T)
+    #dif = 1 - abs(np.dot(user, user_estim) / math.sqrt(np.dot(user, user) * np.dot(user_estim, user_estim)))
+    dist = spatial.distance.cosine(user, user_estim)
+    #evcl_dist = spatial.distance.euclidean(user, user_estim)
     truth = ratings[my_recommendation_list]
     #print(truth)
     NDCG_ = NDCG((truth + 1) / 2.)

@@ -1,0 +1,10 @@
+--f 1 --u yahoo --i 0.3 --m 0
+--f 2 --u yahoo --i 0.3 --m 0
+--f 3 --u yahoo --i 0.3 --m 0
+--f 4 --u yahoo --i 0.3 --m 0
+--f 5 --u yahoo --i 0.3 --m 0
+--f 6 --u yahoo --i 0.3 --m 0
+--f 7 --u yahoo --i 0.3 --m 0
+--f 8 --u yahoo --i 0.3 --m 0
+--f 9 --u yahoo --i 0.3 --m 0
+--f 0 --u yahoo --i 0.3 --m 0

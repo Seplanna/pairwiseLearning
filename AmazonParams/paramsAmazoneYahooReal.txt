@@ -1,0 +1,10 @@
+--f 1 --u yahoo_real --i 0.2 --m 1
+--f 2 --u yahoo_real --i 0.2 --m 1
+--f 3 --u yahoo_real --i 0.2 --m 1
+--f 4 --u yahoo_real --i 0.2 --m 1
+--f 5 --u yahoo_real --i 0.2 --m 1
+--f 6 --u yahoo_real --i 0.2 --m 1
+--f 7 --u yahoo_real --i 0.2 --m 1
+--f 8 --u yahoo_real --i 0.2 --m 1
+--f 9 --u yahoo_real --i 0.2 --m 1
+--f 0 --u yahoo_real --i 0.2 --m 1

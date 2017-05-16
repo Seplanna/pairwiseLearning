@@ -1,0 +1,10 @@
+--f 1 --u bandits_real --i 0.2 --m 1
+--f 2 --u bandits_real --i 0.2 --m 1
+--f 3 --u bandits_real --i 0.2 --m 1
+--f 4 --u bandits_real --i 0.2 --m 1
+--f 5 --u bandits_real --i 0.2 --m 1
+--f 6 --u bandits_real --i 0.2 --m 1
+--f 7 --u bandits_real --i 0.2 --m 1
+--f 8 --u bandits_real --i 0.2 --m 1
+--f 9 --u bandits_real --i 0.2 --m 1
+--f 0 --u bandits_real --i 0.2 --m 1

@@ -1,0 +1,10 @@
+--f 1 --u random --i 0.1 --m 0
+--f 2 --u random --i 0.1 --m 0
+--f 3 --u random --i 0.1 --m 0
+--f 4 --u random --i 0.1 --m 0
+--f 5 --u random --i 0.1 --m 0
+--f 6 --u random --i 0.1 --m 0
+--f 7 --u random --i 0.1 --m 0
+--f 8 --u random --i 0.1 --m 0
+--f 9 --u random --i 0.1 --m 0
+--f 0 --u random --i 0.1 --m 0

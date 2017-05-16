@@ -1,0 +1,10 @@
+--f 1 --u bandits --i 0.1 --m 0
+--f 2 --u bandits --i 0.1 --m 0
+--f 3 --u bandits --i 0.1 --m 0
+--f 4 --u bandits --i 0.1 --m 0
+--f 5 --u bandits --i 0.1 --m 0
+--f 6 --u bandits --i 0.1 --m 0
+--f 7 --u bandits --i 0.1 --m 0
+--f 8 --u bandits --i 0.1 --m 0
+--f 9 --u bandits --i 0.1 --m 0
+--f 0 --u bandits --i 0.1 --m 0

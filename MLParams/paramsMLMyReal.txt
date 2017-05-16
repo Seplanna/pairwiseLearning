@@ -1,0 +1,10 @@
+--f 1 --u my_real --i 0.03 --m 1
+--f 2 --u my_real --i 0.03 --m 1
+--f 3 --u my_real --i 0.03 --m 1
+--f 4 --u my_real --i 0.03 --m 1
+--f 5 --u my_real --i 0.03 --m 1
+--f 6 --u my_real --i 0.03 --m 1
+--f 7 --u my_real --i 0.03 --m 1
+--f 8 --u my_real --i 0.03 --m 1
+--f 9 --u my_real --i 0.03 --m 1
+--f 0 --u my_real --i 0.03 --m 1

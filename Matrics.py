@@ -86,8 +86,8 @@ def GetRecommendetList(items, user_estim, items_bias, user):
     item_list = np.argsort(-truth)
     real_truth = np.dot(user, items.T) + items_bias
     real_truth = np.rint(real_truth)
-    real_truth[real_truth > 2] = 2.
-    real_truth[real_truth < -2]  = -2.
+    real_truth[real_truth > 1] = 1.
+    real_truth[real_truth < -1]  = -1.
     return item_list, real_truth[item_list]
 
 def GetSERP(ratings):
@@ -142,12 +142,10 @@ def Test(questions_items, n_q, items, items_bias, user, user_estim, ratings, all
     # test all
     my_recommendation_list, truth = GetRecommendetList(items, user_estim, items_bias, user)
     a = ratings[my_recommendation_list]
-    #a = a[:10] > 0
-    #dif = 1 - abs(np.dot(user, user_estim) / math.sqrt(np.dot(user, user) * np.dot(user_estim, user_estim)))
     dist = spatial.distance.cosine(user, user_estim)
     #evcl_dist = spatial.distance.euclidean(user, user_estim)
-    truth = ratings[my_recommendation_list]
-    #print(truth)
+    if (mode == 1):
+        truth = ratings[my_recommendation_list]
     NDCG_ = NDCG((truth + 1) / 2.)
     precision10 = Precision((truth + 1) / 2., 10)
     correct_pairs = N_correct_pairs(truth)

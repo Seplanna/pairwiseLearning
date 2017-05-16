@@ -9,15 +9,15 @@ from scipy.stats import ttest_1samp
 """
 Relative algorithm from Towards Conversational Recommender Systems
 """
-import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument('--i', type = float)
-parser.add_argument('--u', type = int)
-parser.add_argument('--f', type = int)
-parser.add_argument('--m', type = int)
-FLAGS, unparsed = parser.parse_known_args()
+#import argparse
+#parser = argparse.ArgumentParser()
+#parser.add_argument('--i', type = float)
+#parser.add_argument('--u', type = int)
+#parser.add_argument('--f', type = int)
+#parser.add_argument('--m', type = int)
+#FLAGS, unparsed = parser.parse_known_args()
 
-data_dir = "../GeneratedData/data" + str(FLAGS.f)
+#data_dir = "../GeneratedData/data" + str(FLAGS.f)
 
 #data_dir = "../GeneratedDataAmazone/data" + str(FLAGS.f)
 
@@ -27,7 +27,7 @@ data_dir = "../GeneratedData/data" + str(FLAGS.f)
 n_points = 30
 
 
-def GetComparativeItemSimple(user_estim, items, item, questions, answers, items_bias, used_items):
+def GetComparativeItemSimple(user_estim, items, item, questions, answers, items_bias, used_items, learning_rate):
     answers_new = list(answers)
     answers_new.append(-1)
     new_questions = list(questions)
@@ -35,63 +35,38 @@ def GetComparativeItemSimple(user_estim, items, item, questions, answers, items_
     if len(new_questions) < 1:
         reshape = True
     new_questions.append(items[item])
-    # print(np.array(new_questions).shape)
-    new_questions = np.array(new_questions)
-    #new_inverse_matrix = np.linalg.inv(np.dot(new_questions.T, new_questions) + 0.001 * np.eye(new_questions.shape[1]))
-    #new_inverse_matrix = 0.001 * np.eye(new_questions.shape[1])
-    #new_user = np.dot(new_inverse_matrix,
-    #                  np.dot(np.array(answers_new - items_bias[item]), np.array(new_questions)))
-    new_user = UpdateUser(user_estim.copy(), items[item], items_bias[item], -1., FLAGS.i)
+    new_user = UpdateUser(user_estim.copy(), items[item], items_bias[item], -1., learning_rate)
     # picking the comparative item
     comparative_item = BestItem(items, new_user, used_items, items_bias, 0.2)
     return comparative_item
 
 
-def OneStep(user_estim, user, items, used_items, answers, questions, items_bias, users_ratings, baseline=True):
+def OneStep(user_estim, user, items, used_items, answers, questions, items_bias, users_ratings, learning_rate, mode):
     n_latent_factors = len(user)
     # for picking best item
     item = BestItem(items, user_estim, used_items, items_bias, 0.2)
     used_items.append(item)
 
     #make virtual step
-
-
-    #it = items[item].reshape(items.shape[1], 1)
-    #v = np.dot(it, it.T)
-    #new_inverse_matrix = GetInverseMatrix(inverse_matrix, v)
-
-
-    #print (np.array(new_questions).shape)
-    if (baseline):
-        comparative_item = GetComparativeItemSimple(user_estim, items, item, questions, answers, items_bias, used_items)
+    comparative_item = GetComparativeItemSimple(user_estim, items, item, questions, answers, items_bias, used_items, learning_rate)
     used_items.append(comparative_item)
-
+    
+    #update user
     user_answer = receive_answer(user, items[item] - items[comparative_item], -2, 2,
                                  items_bias[item] - items_bias[comparative_item])
-    if (FLAGS.m == 1):
+    if (mode == 1):
         user_answer = trueAnswer(users_ratings, item, comparative_item)
     answers.append(user_answer - items_bias[item] + items_bias[comparative_item])
 
     it = items[item]
     questions.append(items[item] - items[comparative_item])
     questions1 = np.array(questions)
-    #if (reshape):
-    #    questions1 = questions1.reshape(1, questions1.shape[0])
 
-    #com_it = items[comparative_item].reshape([items.shape[1], 1])
-    #v = np.dot(it-com_it, (it - com_it).T)
-    #new_inverse_matrix1 = GetInverseMatrix(inverse_matrix, v)
+    user_estim = UpdateUser(user_estim.copy(), questions[-1], items_bias[item] - items_bias[comparative_item], answers[-1], learning_rate)
 
-    #new_inverse_matrix = np.linalg.inv(np.dot(questions1.T, questions1) + 0.001 * np.eye(questions1.shape[1]))
-    #d = np.max(new_inverse_matrix - new_inverse_matrix1)
-    #print (np.max(d))
-    user_estim = UpdateUser(user_estim.copy(), questions[-1], items_bias[item] - items_bias[comparative_item], answers[-1], FLAGS.i)
-
-    #user_estim = np.dot(new_inverse_matrix,
-    #                     np.dot(np.array(answers), np.array(questions)))
     return user_estim, answers, used_items, questions, [item, comparative_item]
 
-def AllAlgorithm(items, user, user_estim, n_questions, items_bias, users_ratings, baseline = True):
+def AllAlgorithm(items, user, user_estim, n_questions, items_bias, users_ratings, learning_rate, mode):
     inverse_matrix = np.linalg.inv(np.eye(user.shape[0]) * 0.001)
     answers = []
     used_items = []
@@ -100,10 +75,10 @@ def AllAlgorithm(items, user, user_estim, n_questions, items_bias, users_ratings
     for q in range(n_questions):
         user_estim, answers, used_items, questions, item_question = OneStep(user_estim, user,
                                                                   items, used_items, answers, questions,
-                                                                             items_bias, users_ratings, baseline)
+                                                                             items_bias, users_ratings, learning_rate, mode)
         questions_item.append(item_question)
     dif = user - user_estim
-    return answers, questions, used_items, questions_item
+    return questions_item
 
 import pandas as pd
 
@@ -137,232 +112,11 @@ def GetData1(directory, users):
     return ratings
 
 class BanditBaseline(object):
-    def __init__(self):
-       self.RecieveQuestions = AllAlgorithm
-
-def main():
-    #dir = "data"
-    print(data_dir)
-    item_vecs, item_bias, user_vecs, user_bias, global_bias, user_vecs_train, user_bias_train = GetData(data_dir)
-    user_estim = np.mean(user_vecs_train, axis = 0)
-    print(item_vecs.shape, user_vecs.shape,user_vecs_train.shape)
-    popular_items = np.genfromtxt(data_dir + "/train_ratings.txt_").astype(int)
-    
-    non_informative_items = np.where(abs(item_bias) > 0.3)[0]
-
-    mean_dist = [0. for i in range(n_points+2)]
-    NDCG_train = [0. for i in range(n_points+2)]
-    my_NDCG = [0. for i in range(n_points+2)]
-    correct_pairs = [0. for i in range(n_points+2)]
-    my_correct_pairs = [0. for i in range(n_points+2)]
-    my_mean_dist = [0. for i in range(n_points+2)]
-    precision10 = [0. for i in range(n_points+2)]
-    my_precision10 = [0. for i in range(n_points+2)]
-    n_users_in_test_ = 1000
-    n_users_in_test = 1e-10
-    n_users_in_test_ndcg = 1e-10
-    n_NDCG = 0
-
-    ratings = np.genfromtxt(data_dir + "/tes_ratings1.txt")
-
-    #ratings = ratings.T
-    #ratings[non_informative_items] = 0
-    #ratings = ratings.T
-    #ratings = ratings * (item_bias < 0.2) * (item_bias > -0.2)
-
-    #FirstAlgorithm(40, 10, item_vecs, item_bias, dir)
-    user_estim_first = np.mean(user_vecs_train, axis=0)
-
-        
-    #my_questions_item_ = np.genfromtxt(data_dir +  "/questions_items")
-    my_questions_item_ = np.genfromtxt(data_dir +  "/questions_items_user_specific")
-    for i in range(n_users_in_test_):
-        sys.stdout.write("\r%d%%" % i)
-
-        #my estimation
-        my_questions_item = my_questions_item_
-        if (FLAGS.m == 1):
-             my_questions_item = my_questions_item_[i].reshape(my_questions_item_[i].shape[0] / 2, 2)
-         
-
-
-        if (len(ratings[i][popular_items].nonzero()[0]) < 20):
-            continue
-   
-
-        user_estim = np.mean(user_vecs_train, axis = 0)
-        
-        if (FLAGS.m == 1):
-            u_r = np.array(ratings[i][popular_items].nonzero()[0])
-        if (FLAGS.m == 0):
-            u_r = np.arange(popular_items.shape[0])
-
-        answers, questions,used_items,questions_item = AllAlgorithm(item_vecs[popular_items[u_r]], user_vecs[i],
-                                          user_estim, n_points, item_bias[popular_items[u_r]], ratings[i][popular_items[u_r]])
-        questions_item = np.array(questions_item).astype(int)
-        questions_item = questions_item.T
-        #questions_item[0] = popular_items[questions_item[0]]
-        #questions_item[1] = popular_items[questions_item[1]]
-        questions_item[0] = popular_items[u_r[questions_item[0]]]
-        questions_item[1] = popular_items[u_r[questions_item[1]]]
-        questions_item = questions_item.T
-        #answers_mine, my_questions, my_used_items, my_questions_item = AllAlgorithm(item_vecs, user_vecs[i],
-        #                                  user_estim, n_points, item_bias, False)
-
-
-        test_ratings = ratings[i].copy()
-        #test_ratings[used_items] = 0
-
-        my_questions_item = np.array(my_questions_item).astype(int)
-        my_questions_item = my_questions_item.T
-        my_questions_item[0] = popular_items[my_questions_item[0]]
-        my_questions_item[1] = popular_items[my_questions_item[1]]
-        my_questions_item = my_questions_item.T
-
-        test_ratings[popular_items] = 0
-        test_ratings[non_informative_items] = 0
-        #test_ratings[my_questions_item.T[0]] = 0
-        #test_ratings[my_questions_item.T[1]] = 0
-        non_zerro_ratings = np.array(test_ratings.nonzero()[0])
-        #print(non_zerro_ratings.shape)
-        if (non_zerro_ratings.shape[0] < 15):
-            continue
-        #if (len(ratings[i].nonzero()[0]) < 10):
-        #    continue
-        n_users_in_test += 1
-        #test
-        """questions = (item_vecs[questions_item.T[0]] - item_vecs[questions_item.T[1]])
-        my_questions = (item_vecs[my_questions_item.T[0]] - item_vecs[my_questions_item.T[1]])
-        my_norm = [np.dot(q, q.T) for q in my_questions]
-        print(my_norm)
-        print(np.trace(np.linalg.inv(np.dot(questions[:1].T, questions[:1]) +
-                                     0.01 * np.eye(questions.shape[1]))))
-        print(np.trace(np.linalg.inv(np.dot(my_questions[:1].T, my_questions[:1]) +
-                                     0.01 * np.eye(my_questions.shape[1]))))
-        """
-        """answers = np.dot(questions, user_vecs[i])
-        my_answers = np.dot(my_questions, user_vecs[i])
-        user_estim = np.dot(np.linalg.inv(np.dot(questions.T, questions) + 0.00 * np.eye(questions.shape[1])), np.dot(answers, questions))
-        my_user_estim = np.dot(np.linalg.inv(np.dot(my_questions.T, my_questions) + 0.00 * np.eye(my_questions.shape[1])), np.dot(my_answers, my_questions))
-        print('BASELINE =', 1 - abs(np.dot(user_vecs[i], user_estim) / math.sqrt(np.dot(user_vecs[i], user_vecs[i]) * np.dot(user_estim, user_estim))))
-        print(1 - abs(np.dot(user_vecs[i], my_user_estim) / math.sqrt(np.dot(user_vecs[i], user_vecs[i]) * np.dot(my_user_estim, my_user_estim))))
-        print(answers)
-        print(my_answers)"""
-    
-        a = ratings[i][non_zerro_ratings]
-        if (i % 100 == 1):
-            print(n_users_in_test)
-            print(" BASELINE DIST = ", np.array(mean_dist) / (n_users_in_test))
-            print(" MY DIST = ", np.array(my_mean_dist) / (n_users_in_test))
-            print(" BASELINE NDCG = ", np.array(NDCG_train) / (n_users_in_test_ndcg))
-            print(" MY NDCG = ", np.array(my_NDCG) / (n_users_in_test_ndcg))
-            print(" BASELINE CP = ", np.array(correct_pairs) / n_users_in_test)
-            print(" MY CP = ", np.array(my_correct_pairs) / n_users_in_test)
-            print(" BASELINE P10 = ", np.array(precision10) / n_users_in_test)
-            print(" MY P10 = ", np.array(my_precision10) / n_users_in_test)
-
-        for j in range(n_points + 2):
-            
-            dist_b, ndcg_b, correct_pairs_, precision10_ = Test(questions_item, (j),
-                                                  item_vecs[non_zerro_ratings], item_bias[non_zerro_ratings],
-                                                  user_vecs[i], user_estim_first.copy(), a, item_vecs, item_bias, ratings[i], FLAGS.i, FLAGS.m)           
-            dist_b_my, ndcg_b_my, correct_pairs_my_, my_precision10_ = Test(my_questions_item, (j),
-                                                           item_vecs[non_zerro_ratings], item_bias[non_zerro_ratings],
-                                                           user_vecs[i], user_estim_first.copy(), a, item_vecs, item_bias, ratings[i], FLAGS.i, FLAGS.m)
-
-            mean_dist[j] += dist_b
-            correct_pairs[j] += correct_pairs_
-            precision10[j] += precision10_
-            my_mean_dist[j] += dist_b_my
-            my_correct_pairs[j] += correct_pairs_my_
-            my_precision10[j] += my_precision10_
-            
-            """
-            for i1 in range(10):
-                serp = GetSERP(a)
-                if max(serp) > 0:
-                    if (j == 0 and i1 == 0):
-                        n_NDCG += 1
-                    dist_b,ndcg_b, correct_pairs_, precision10_ = Test(questions_item, (j),
-                        item_vecs[non_zerro_ratings[serp]], item_bias[non_zerro_ratings[serp]],
-                        user_vecs[i], user_estim_first.copy(), a[serp], item_vecs, item_bias, FLAGS.i)
-                    dist_b_my, ndcg_b_my, correct_pairs_my_, my_precision10_ = Test(my_questions_item, (j),
-                                    item_vecs[non_zerro_ratings[serp]], item_bias[non_zerro_ratings[serp]],
-                                    user_vecs[i], user_estim_first.copy(), a[serp], item_vecs, item_bias, FLAGS.i)
-                    NDCG_train[j] += ndcg_b / 10.
-                    my_NDCG[j] += ndcg_b_my / 10.
-                    n_users_in_test_ndcg += 1. / (10 * n_points)
-            """
-            #test all
-        sys.stdout.write("\r")
-    mean_dist = np.array(mean_dist)
-    my_mean_dist = np.array(my_mean_dist)
-    NDCG_train = np.array(NDCG_train, float)
-    my_NDCG = np.array(my_NDCG, float)
-    correct_pairs = np.array(correct_pairs, float)
-    my_correct_pairs = np.array(my_correct_pairs, float)
-    precision10 = np.array(precision10, float)
-    my_precision10 = np.array(my_precision10, float)
-    print(n_users_in_test)
-    print(" BASELINE = ", mean_dist / (n_users_in_test))
-    print(" MY = ", my_mean_dist / (n_users_in_test))
-    print(" BASELINE = ", NDCG_train / (n_users_in_test_ndcg))
-    print(" MY = ", my_NDCG / (n_users_in_test_ndcg))
-    print(" BASELINE = ", correct_pairs / n_users_in_test)
-    print(" MY = ", my_correct_pairs/ n_users_in_test)
-    print(" BASELINE = ", precision10 / n_users_in_test)
-    print(" MY = ", my_precision10/ n_users_in_test)
-    return mean_dist / (n_users_in_test), my_mean_dist / (n_users_in_test), NDCG_train / (n_users_in_test_ndcg), \
-    my_NDCG / (n_users_in_test_ndcg), correct_pairs / n_users_in_test, my_correct_pairs/ n_users_in_test, \
-    precision10 / n_users_in_test, my_precision10 / n_users_in_test
-
-
-
-
-    #print(mean_dist / n_users_in_test)
-#main("data0")
-
-mean_dist = [[] for i in range(n_points)]
-my_mean_dist = [[] for i in range(n_points)]
-NDCG_train = [[] for i in range(n_points)]
-my_NDCG = [[] for i in range(n_points)]
-correct_pairs  = [[] for i in range(n_points)]
-my_correct_pairs  = [[] for i in range(n_points)]
-precision10  = [[] for i in range(n_points)]
-my_precision10  = [[] for i in range(n_points)]
-for i in range(1):
-    if (i == 5):
-        continue
-    mean_dist_,my_mean_dist_,NDCG_train_,my_NDCG_,correct_pairs_,my_correct_pairs_, \
-        precision10_, my_precision10_ = main()
-    for i in range(n_points):
-        mean_dist[i].append(mean_dist_[i])
-        my_mean_dist[i].append(my_mean_dist_[i])
-        NDCG_train[i].append(NDCG_train_[i])
-        my_NDCG[i].append(my_NDCG_[i])
-        correct_pairs[i].append(correct_pairs_[i])
-        my_correct_pairs[i].append(my_correct_pairs_[i])
-        precision10[i].append(precision10_[i])
-        my_precision10[i].append(my_precision10_[i])
-
-
-mean_dist = np.array(mean_dist)
-my_mean_dist = np.array(my_mean_dist)
-NDCG_train = np.array(NDCG_train)
-my_NDCG = np.array(my_NDCG)
-correct_pairs  = np.array(correct_pairs)
-my_correct_pairs  = np.array(my_correct_pairs)
-precision10 = np.array(precision10)
-my_precision10 = np.array(my_precision10)
-
-np.savetxt(data_dir + "/mean_dist1", mean_dist)
-np.savetxt(data_dir + "/my_mean_dist1", my_mean_dist)
-np.savetxt(data_dir + "/NDCG1", NDCG_train)
-np.savetxt(data_dir + "/my_NDCG1", my_NDCG)
-np.savetxt(data_dir + "/correct_pairs1", correct_pairs)
-np.savetxt(data_dir + "/my_correct_pairs1", my_correct_pairs)
-np.savetxt(data_dir + "/precision101", precision10)
-np.savetxt(data_dir + "/my_precision101", my_precision10)
+    def __init__(self, mode, learning_rate):
+       self.learning_rate = learning_rate
+       self.mode = mode
+    def RecieveQuestions(self, item_vecs, user, user_estim, n_points, item_bias, ratings):
+           return AllAlgorithm(item_vecs, user, user_estim, n_points, item_bias, ratings, self.learning_rate, self.mode)
 
 
 def GetResultsFromFiles():

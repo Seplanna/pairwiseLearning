@@ -42,7 +42,7 @@ class LasyTree(object):
 
 def SplitPeople(users, question):
     answers = np.dot(users, question)
-    return [np.where(answers > 0.01)[0], np.where(answers < -0.01)[0]]
+    return [np.where(answers > 0.)[0], np.where(answers < -0.)[0]]
 
 def GetIG(split, users):
     lIG = 0.
@@ -63,21 +63,25 @@ def GetIGVariance(split, users):
     lIG /= n_users
     return lIG
 
-def BuildNewNodes(tree, items, users):
+def BuildNewNodes(tree, items, users, clusters):
     items_len = items.shape[0]
-    IG = 10e+10
+    IG = 1e+100
     best_question = [0,0]
     best_split = [tree, tree, tree]
     min_n_same_users = 1
     best_lens = []
     for item in range(items_len):
+        if len(clusters[item]) < 1:
+            continue
         for com_item in range(item+1, items_len):
+            if len(clusters[com_item]) < 1:
+                continue
             #print(item, com_item)
             question = items[item] - items[com_item]
             split = SplitPeople(users[tree.users], question)
             split = [tree.users[s] for s in split]
             #print(split)
-            lIG = 0.
+            lIG = 0
             if (min(len(split[u]) for u in range(len(split))) < min_n_same_users):
                 continue
 
@@ -94,41 +98,47 @@ def BuildNewNodes(tree, items, users):
 def RecieveRealItems(question, items, clusters, centroids):
     cluster1 = np.array(clusters[question[0]])
     cluster2 = np.array(clusters[question[1]])
-    item1 = np.argmax(np.linalg.norm(items[cluster1] - centroids[0], axis=1))
-    item2 = np.argmax(np.linalg.norm(items[cluster2] - centroids[1], axis=1))
+    item1 = np.argmax(np.linalg.norm(items[cluster1] - centroids[question[1]], axis=1))
+    item2 = np.argmax(np.linalg.norm(items[cluster2] - centroids[question[0]], axis=1))
     return[cluster1[item1], cluster2[item2]]
 
-def OneStep(tree, centroids, items, items_bias, users, user, clusters):
+def OneStep(tree, centroids, items, items_bias, users, user, clusters, mode, ratings):
     question = [0, 0]
     if (len(tree.users) < 10):
         return tree, question
     if (tree.question == ''):
-        BuildNewNodes(tree, centroids, users)
+        BuildNewNodes(tree, centroids, users, clusters)
     question = tree.question
-    question = RecieveRealItems(question, items, clusters, [centroids[question[0]], centroids[question[1]]])
-    user_answer = receive_answer(user, items[question[0]] - items[question[1]], -1, 1, items_bias[question[0]] - items_bias[question[1]])
+    question = RecieveRealItems(question, items, clusters, centroids)
     user_answer = np.dot(user, items[question[0]] - items[question[1]]) + items_bias[question[0]] - items_bias[question[1]]
+    if (mode == 1):
+        user_answer = ratings[question[0]] - ratings[question[1]]
+    user_answer -= (items_bias[question[0]] - items_bias[question[1]])  
     user_answer = int(user_answer > 0)
     tree = tree.sons[int(user_answer)]
     return tree, question
 
-def AllAlgorithm(users, n_iterations, centroids, items, items_bias, user, clusters, tree):
+def AllAlgorithm(users, n_iterations, centroids, items, items_bias, user, clusters, tree, mode, ratings):
 
     tree1 = tree
+    if mode == 1:
+        tree1 = LasyTree(tree.users)
     questions = []
     last_q_random = False
     for i in range(n_iterations):
         question = [0, 0]
         if(last_q_random == False):
-            tree1, question = OneStep(tree1, centroids, items, items_bias, users, user, clusters)
+            tree1, question = OneStep(tree1, centroids, items, items_bias, users, user, clusters, mode, ratings)
         if (last_q_random == True or question[0] == question[1]):
+            last_q_random = True
             question[0] = np.random.randint(0, items.shape[0], 1)
             question[1] = np.random.randint(0, items.shape[0], 1)
         questions.append(question)
     return questions
 
 class ClusteringPairwise():
-    def __init__(self, users_vecs_train_file, centroid_file, clustering_file, num_clusters, n_iteration):
+    def __init__(self, users_vecs_train_file, centroid_file, clustering_file, num_clusters, n_iteration, mode):
+       self.mode = mode
        self.num_clusters = num_clusters
        self.users = np.genfromtxt(users_vecs_train_file)
        self.tree = LasyTree(np.arange(self.users.shape[0]))
@@ -143,16 +153,17 @@ class ClusteringPairwise():
        self.kclusterer = KMeansClusterer(num_clusters, distance=cosine_distance, initial_means=list(self.centroids))
 
     def RecieveQuestions(self, item_vecs, user, user_estim, n_points, item_bias, ratings):
-        clusters_ = self.kclusterer.cluster(item_vecs, assign_clusters=True)
+        clusters_ = [self.kclusterer.classify(item) for item in item_vecs]
         clusters = {}
         for i in range(self.num_clusters):
            clusters[i] = []
         for i in range(len(clusters_)):
            clusters[clusters_[i]].append(i)
+        a = np.argsort(clusters_)
         return  AllAlgorithm(self.users, self.n_iteration, self.centroids,
                                       item_vecs,
                                       item_bias,
-                                      user, clusters, self.tree)
+                                      user, clusters, self.tree, self.mode, ratings)
 
 #ClusterItems(data_dir + "/items1.txt", data_dir + "/items_bias1.txt", data_dir + "/train_ratings.txt_",data_dir + "/clusters", data_dir + "/centroids_file")
 #RunTesting("centroids_file", "clusters")
